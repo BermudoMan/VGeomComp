@@ -3,6 +3,8 @@ import pathlib
 from pathlib import Path
 from itertools import islice
 import subprocess
+import time
+import shutil, os
 
 # import matplotlib
 
@@ -13,7 +15,7 @@ file_in_directory = list(map(str, paths))
 
 # In each *.log file in directory find xyz coordinates and save them to the "COORDS" folder with .xyz extention
 
-def xyz_cut_gaussian():
+def xyz_cut_gaussian(marker_start, marker_end):
     way = str(Path.cwd()) + '\\XYZ'
     pathlib.Path(way).mkdir(parents=True, exist_ok=True)
     start_xyz = 0
@@ -23,8 +25,6 @@ def xyz_cut_gaussian():
         name = str(i).replace('.log', '') + '.xyz'
         writing_xyz = open(way + '\\' + name, '+w')
         reading_log = open(i, 'r')
-        marker_start = 'Standard orientation'
-        marker_end = 'Basis read from chk'
         for line in iter(reading_log):
             index += 1
             if marker_start in line:
@@ -39,6 +39,7 @@ def xyz_cut_gaussian():
         end_xyz = 0
         reading_log.close()
         writing_xyz.close()
+    return print('.xyz copied to the XYZ folder')
 
 
 # For each *.log file in directory create .inp file in the "VM" folder, for each .inp file run calculation
@@ -56,15 +57,16 @@ def vm_generation(temperature):
         writing_vm_inp.write('STOP' + '\n')
         writing_vm_inp.close()
         subprocess.Popen(['S:\\soft\\VibModule\\vibmodule.exe', way + '\\' + name])
-# ToDo figure out how to avoid specifying the full path to the vibmodule.exe file
+    # ToDo figure out how to avoid specifying the full path to the vibmodule.exe file
+    # ToDo avoid using time command!
+    return print('.vm generated to the VM folder')
+
 
 # For each *.log file in directory create .inp file in the "UNEX" folder on the basis of the template.inp file,
 # for each .inp file run calculation in UNEX program
-def unex_inp_generation():
+def unex_generation(start_vm, stop_vm):
     block_xyz = '<xyz>'
     block_ampl = '<ampl>'
-    start_vm = ' List of the data in the UNEX format'
-    stop_vm = ' VibModule terminated normally.'
     x = 0
     y = 0
     way = str(Path.cwd()) + '\\UNEX'
@@ -78,12 +80,12 @@ def unex_inp_generation():
         for num_line, line in enumerate(reading_vm):
             if start_vm in line:
                 x = num_line + 2
-                print(x)
+        #                print(x)
         reading_vm.seek(0)
         for num_line, line in enumerate(reading_vm):
             if stop_vm in line:
                 y = num_line - 1
-                print(y)
+        #                print(y)
         reading_vm.seek(0)
 
         template = open('template.inp', 'r')
@@ -104,8 +106,71 @@ def unex_inp_generation():
                     writing_unex_inp.write(k)
                 x = 0
                 y = 0
+        template.close()
+        writing_unex_inp.close()
+        reading_xyz.close()
+        reading_vm.close()
+        subprocess.Popen(['S:\\soft\\UNEX\\unex.exe', way + '\\' + name, way + '\\' + name.replace('.inp', '') + '.ks'])
+    return print('.log generated in UNEX folder')
 
 
-xyz_cut_gaussian()
+def ref_sms_found():
+    way = str(Path.cwd()) + '\\UNEX\\'
+    #    file_with_ref_sms = open(way + str(file_in_directory[0]).replace('.log', '_unex_1.log'), 'r')
+    file_with_ref_sms = open(way + '2a_unex.ks', 'r')
+    print('\n' + str(file_with_ref_sms))
+    ref_sms = open(way + 'ref_sms.dat', '+w')
+    start_sms_block = 'Set: 1-1'
+    index = 0
+    x = 0
+    for line in iter(file_with_ref_sms):
+        index += 1
+        if start_sms_block in line:
+            x = index + 13
+    file_with_ref_sms.seek(0)
+    for line_sms in islice(file_with_ref_sms, x - 1, x + 269):
+        ref_sms.write(line_sms[1:15] + line_sms[31:47] + '\n')
+    file_with_ref_sms.close()
+    ref_sms.close()
+    # ToDo auto  conformer seacrh corresponded min on the PES
+    return print('ref_sms.dat generated')
+
+
+# Paste ref_sms.dat to the <ref_sms>/<ref_sms> block of the template.inp
+def paste_ref_sms(start_sms_block, end_sms_block):
+    way = str(Path.cwd()) + '\\UNEX\\'
+    template = open('template.inp', 'r')
+    update_template = open('template_updated.inp', '+w')
+    for line in iter(template):
+        if start_sms_block not in line:
+            update_template.write(line)
+        else:
+            break
+    template.close()
+    update_template.close()
+
+    update_template = open('template_updated.inp', 'a')
+    ref_sms = open(way + 'ref_sms.dat', 'r')
+    update_template.write(start_sms_block + '\n')
+    for sms_line in iter(ref_sms):
+        update_template.write(sms_line)
+    update_template.write(end_sms_block)
+    update_template.close()
+    ref_sms.close()
+
+    shutil.copyfile('template_updated.inp', 'template.inp')
+    os.remove('template_updated.inp')
+    # ToDo think of a way to properly delete the unnecessary files
+
+
+
+
+xyz_cut_gaussian('Standard orientation', 'Basis read from chk')
+# time.sleep(2)
 vm_generation(298)
-unex_inp_generation()
+time.sleep(4)
+unex_generation(' List of the data in the UNEX format', ' VibModule terminated normally.')
+time.sleep(4)
+ref_sms_found()
+paste_ref_sms('<ref_sms> ', '</ref_sms> ')
+unex_generation(' List of the data in the UNEX format', ' VibModule terminated normally.')
