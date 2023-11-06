@@ -114,7 +114,7 @@ def unex_generation(start_vm, stop_vm):
     return print('.log generated in UNEX folder')
 
 
-def ref_sms_found():
+def ref_sms_found(points_number):
     way = str(Path.cwd()) + '\\UNEX\\'
     #    file_with_ref_sms = open(way + str(file_in_directory[0]).replace('.log', '_unex_1.log'), 'r')
     file_with_ref_sms = open(way + '2a_unex.ks', 'r')
@@ -128,11 +128,11 @@ def ref_sms_found():
         if start_sms_block in line:
             x = index + 13
     file_with_ref_sms.seek(0)
-    for line_sms in islice(file_with_ref_sms, x - 1, x + 269):
+    for line_sms in islice(file_with_ref_sms, x - 1, x + points_number):
         ref_sms.write(line_sms[1:15] + line_sms[31:47] + '\n')
     file_with_ref_sms.close()
     ref_sms.close()
-    # ToDo auto  conformer seacrh corresponded min on the PES
+    # ToDo auto conformer seacrh corresponded min on the PES
     return print('ref_sms.dat generated')
 
 
@@ -163,6 +163,26 @@ def paste_ref_sms(start_sms_block, end_sms_block):
     # ToDo think of a way to properly delete the unnecessary files
 
 
+# Find in all .ks files block with "Radial distribution functions" data and save them to .dat file in the RDF directory
+def RDF_search(RDF, points_number):
+    way = str(Path.cwd()) + '\\RDF'
+    pathlib.Path(way).mkdir(parents=True, exist_ok=True)
+    index = 0
+    x = 0
+    for i in file_in_directory:
+        reading_ks = open(str(Path.cwd()) + '\\UNEX\\' + str(i.replace('.log', '') + '_unex.ks'), 'r')
+        writing_file = open(str(Path.cwd()) + '\\RDF\\' + str(i.replace('.log', '') + '.dat'), '+w')
+        for line in iter(reading_ks):
+            index += 1
+            if RDF in line:
+                x = index + 1
+        reading_ks.seek(0)
+        for RDF_lines in islice(reading_ks, x + 2, x + points_number + 1):
+            writing_file.write(RDF_lines)
+        x = 0
+        index = 0
+        writing_file.close()
+        reading_ks.close()
 
 
 xyz_cut_gaussian('Standard orientation', 'Basis read from chk')
@@ -171,6 +191,8 @@ vm_generation(298)
 time.sleep(4)
 unex_generation(' List of the data in the UNEX format', ' VibModule terminated normally.')
 time.sleep(4)
-ref_sms_found()
+ref_sms_found(269)
 paste_ref_sms('<ref_sms> ', '</ref_sms> ')
 unex_generation(' List of the data in the UNEX format', ' VibModule terminated normally.')
+time.sleep(4)
+RDF_search('Radial distribution functions:', 301)
