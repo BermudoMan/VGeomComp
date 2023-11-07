@@ -3,10 +3,13 @@ import pathlib
 from pathlib import Path
 from itertools import islice
 import subprocess
+# need to avoid
 import time
-import shutil, os
-
-# import matplotlib
+import shutil
+import os
+# need to avoid
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Adding all *.log file names to "file_in_directory" list
 paths = sorted(Path('.').glob('*.log'))
@@ -40,7 +43,7 @@ def xyz_cut_gaussian(marker_start, marker_end):
         reading_log.close()
         writing_xyz.close()
     return print('.xyz copied to the XYZ folder')
-
+    # ToDo exceptions
 
 # For each *.log file in directory create .inp file in the "VM" folder, for each .inp file run calculation
 # in VibModule program
@@ -59,6 +62,8 @@ def vm_generation(temperature):
         subprocess.Popen(['S:\\soft\\VibModule\\vibmodule.exe', way + '\\' + name])
     # ToDo figure out how to avoid specifying the full path to the vibmodule.exe file
     # ToDo avoid using time command!
+    # ToDo solve problem with generation of the .vm files in some cases
+    # ToDo exceptions
     return print('.vm generated to the VM folder')
 
 
@@ -112,12 +117,12 @@ def unex_generation(start_vm, stop_vm):
         reading_vm.close()
         subprocess.Popen(['S:\\soft\\UNEX\\unex.exe', way + '\\' + name, way + '\\' + name.replace('.inp', '') + '.ks'])
     return print('.log generated in UNEX folder')
+    # ToDo exceptions
 
-
-def ref_sms_found(points_number):
+def ref_sms_found(points_number, ref_structure):
     way = str(Path.cwd()) + '\\UNEX\\'
     #    file_with_ref_sms = open(way + str(file_in_directory[0]).replace('.log', '_unex_1.log'), 'r')
-    file_with_ref_sms = open(way + '2a_unex.ks', 'r')
+    file_with_ref_sms = open(way + ref_structure, 'r')
     print('\n' + str(file_with_ref_sms))
     ref_sms = open(way + 'ref_sms.dat', '+w')
     start_sms_block = 'Set: 1-1'
@@ -134,7 +139,7 @@ def ref_sms_found(points_number):
     ref_sms.close()
     # ToDo auto conformer seacrh corresponded min on the PES
     return print('ref_sms.dat generated')
-
+    # ToDo exceptions
 
 # Paste ref_sms.dat to the <ref_sms>/<ref_sms> block of the template.inp
 def paste_ref_sms(start_sms_block, end_sms_block):
@@ -161,10 +166,10 @@ def paste_ref_sms(start_sms_block, end_sms_block):
     shutil.copyfile('template_updated.inp', 'template.inp')
     os.remove('template_updated.inp')
     # ToDo think of a way to properly delete the unnecessary files
-
+    # ToDo exceptions
 
 # Find in all .ks files block with "Radial distribution functions" data and save them to .dat file in the RDF directory
-def RDF_search(RDF, points_number):
+def rdf_search(RDF, points_number):
     way = str(Path.cwd()) + '\\RDF'
     pathlib.Path(way).mkdir(parents=True, exist_ok=True)
     index = 0
@@ -183,16 +188,55 @@ def RDF_search(RDF, points_number):
         index = 0
         writing_file.close()
         reading_ks.close()
+        # ToDo exceptions
+
+# Plotting RDF
+def plotting_rdf(columns):
+    paths = sorted(Path('.\\RDF').glob('*.dat'))
+    file_in_the_RDF_directory = list(map(str, paths))
+
+    rows = len(file_in_the_RDF_directory) // columns + 1
+
+    plt.figure(figsize=(columns * 6, rows * 6))
+    for i, ax in enumerate(file_in_the_RDF_directory):
+        data = np.loadtxt(file_in_the_RDF_directory[i])
+        if len(file_in_the_RDF_directory) % 2 != 0:
+            ax = plt.subplot(rows + 1, columns, i + 1)
+            r = data[:, 0]
+            exp_fr = data[:, 1]
+            th_fr = data[:, 2]
+            delta_fr = data[:, 3] - 1.5
+            ax.plot(r, exp_fr, color='red', linewidth=1, label='exp_fr')
+            ax.plot(r, th_fr, color='green', linewidth=1, label='th_fr')
+            ax.plot(r, delta_fr, label='delta_fr')
+            ax.set_xlabel('r')
+            ax.set_title(file_in_the_RDF_directory[i])
+            ax.legend()
+        else:
+            ax = plt.subplot(rows, columns, i + 1)
+            r = data[:, 0]
+            exp_fr = data[:, 1]
+            th_fr = data[:, 2]
+            delta_fr = data[:, 3] - 1.5
+            ax.plot(r, exp_fr, color='red', linewidth=1, label='exp_fr')
+            ax.plot(r, th_fr, color='green', linewidth=1, label='th_fr')
+            ax.plot(r, delta_fr, label='delta_fr')
+            ax.set_xlabel('r')
+            ax.set_title(file_in_the_RDF_directory[i])
+            ax.legend()
+    plt.subplots_adjust(hspace=0.4)
+    plt.savefig('RDFcomp.png')
 
 
 xyz_cut_gaussian('Standard orientation', 'Basis read from chk')
 # time.sleep(2)
 vm_generation(298)
-time.sleep(4)
+time.sleep(15)
 unex_generation(' List of the data in the UNEX format', ' VibModule terminated normally.')
-time.sleep(4)
-ref_sms_found(269)
+time.sleep(8)
+ref_sms_found(269, '1a_unex.ks')
 paste_ref_sms('<ref_sms> ', '</ref_sms> ')
 unex_generation(' List of the data in the UNEX format', ' VibModule terminated normally.')
-time.sleep(4)
-RDF_search('Radial distribution functions:', 301)
+time.sleep(8)
+rdf_search('Radial distribution functions:', 301)
+plotting_rdf(2)
